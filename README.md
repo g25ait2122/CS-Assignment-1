@@ -13,29 +13,29 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Frontend Layer                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │ History  │  │  Museum  │  │ Defense  │  │ Research │   │
-│  │   Page   │  │   Page   │  │   Page   │  │   Page   │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
+│  │ History  │  │  Museum  │  │ Defense  │  │ Research │     │
+│  │   Page   │  │   Page   │  │   Page   │  │   Page   │     │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘     │
 │       React 19 + React Router + ethers.js                   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   Web3 Integration Layer                     │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  MetaMask Provider + JSON-RPC (Anvil localhost:8545) │  │
-│  └──────────────────────────────────────────────────────┘  │
+│                   Web3 Integration Layer                    │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  MetaMask Provider + JSON-RPC (Anvil localhost:8545) │   │
+│  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   Blockchain Layer (Anvil)                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Victim Vaults│  │   Attacker   │  │  Flashloan   │      │
-│  │  (4 types)   │  │  Contracts   │  │     Pool     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│              Solidity 0.8.19 + Foundry                       │
+│                   Blockchain Layer (Anvil)                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ Victim Vaults│  │   Attacker   │  │  Flashloan   │       │
+│  │  (4 types)   │  │  Contracts   │  │     Pool     │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│              Solidity 0.8.19 + Foundry                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,7 +67,7 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
 │  Contract   │                                    │             │
 └──────┬──────┘                                    └──────┬──────┘
        │                                                  │
-       │  1. deposit(1 ETH)                              │
+       │  1. deposit(1 ETH)                               │
        │─────────────────────────────────────────────────>│
        │                                                  │
        │  2. withdraw()                                   │
@@ -75,21 +75,21 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
        │                                                  │
        │                        3. Check: balances[msg.sender] = 1 ETH
        │                                                  │
-       │  4. Transfer 1 ETH (external call)              │
+       │  4. Transfer 1 ETH (external call)               │
        │<─────────────────────────────────────────────────│
        │                                                  │
-       │  [receive() fallback triggered]                 │
+       │  [receive() fallback triggered]                  │
        │                                                  │
-       │  5. withdraw() [REENTRANT CALL]                 │
+       │  5. withdraw() [REENTRANT CALL]                  │
        │─────────────────────────────────────────────────>│
        │                                                  │
        │                        6. Check: balances[msg.sender] = 1 ETH
        │                           (NOT UPDATED YET!)     │
        │                                                  │
-       │  7. Transfer 1 ETH again                        │
+       │  7. Transfer 1 ETH again                         │
        │<─────────────────────────────────────────────────│
        │                                                  │
-       │  [Loop continues until vault empty]             │
+       │  [Loop continues until vault empty]              │
        │                                                  │
        │                        8. balances[msg.sender] = 0
        │                           (TOO LATE)             │
@@ -108,30 +108,30 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
 │  Contract   │                                    │             │
 └──────┬──────┘                                    └──────┬──────┘
        │                                                  │
-       │  1. deposit(1 ETH)                              │
+       │  1. deposit(1 ETH)                               │
        │─────────────────────────────────────────────────>│
        │                                                  │
-       │  2. claimReward()                               │
+       │  2. claimReward()                                │
        │─────────────────────────────────────────────────>│
        │                                                  │
        │                        3. Check: balances[msg.sender] > 0
        │                        4. Check: !rewardsClaimed[msg.sender]
        │                                                  │
-       │  5. Transfer 1 ETH reward                       │
+       │  5. Transfer 1 ETH reward                        │
        │<─────────────────────────────────────────────────│
        │                                                  │
-       │  [receive() fallback triggered]                 │
+       │  [receive() fallback triggered]                  │
        │                                                  │
-       │  6. claimReward() [DIFFERENT FUNCTION]          │
+       │  6. claimReward() [DIFFERENT FUNCTION]           │
        │─────────────────────────────────────────────────>│
        │                                                  │
        │                        7. Check: !rewardsClaimed[msg.sender]
        │                           (STILL FALSE!)         │
        │                                                  │
-       │  8. Transfer 1 ETH reward again                 │
+       │  8. Transfer 1 ETH reward again                  │
        │<─────────────────────────────────────────────────│
        │                                                  │
-       │  [Loop continues]                               │
+       │  [Loop continues]                                │
        │                                                  │
        │                        9. rewardsClaimed[msg.sender] = true
        │                           (TOO LATE)             │
@@ -151,13 +151,13 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
 └──────┬──────┘  └──────┬───────┘  └──────┬───────┘
        │                │                  │
        │  1. deposit(10 ETH)               │
-       │────────────────>│                  │
+       │────────────────>│                 │
        │                │                  │
        │  2. withdraw() │                  │
-       │────────────────>│                  │
+       │────────────────>│                 │
        │                │                  │
        │                │ 3. Transfer 10 ETH
-       │<────────────────│                  │
+       │<────────────────│                 │
        │                │                  │
        │  [receive() fallback triggered]   │
        │                │                  │
@@ -193,10 +193,10 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
 └──────┬──────┘  └──────┬───────┘  └──────┬───────┘
        │                │                  │
        │  1. attack(50 ETH)                │
-       │────────────────>│                  │
+       │────────────────>│                 │
        │                │                  │
        │                │ 2. Transfer 50 ETH (loan)
-       │<────────────────│                  │
+       │<────────────────│                 │
        │                │                  │
        │  [receive() callback triggered]   │
        │                │                  │
@@ -220,7 +220,7 @@ This project provides a comprehensive analysis of reentrancy vulnerabilities in 
        │  [Vault drained in 2-3 loops]     │
        │                │                  │
        │  8. Repay 50 ETH loan             │
-       │────────────────>│                  │
+       │────────────────>│                 │
        │                │                  │
        │  9. Keep profit (10 ETH)          │
        │                │                  │
