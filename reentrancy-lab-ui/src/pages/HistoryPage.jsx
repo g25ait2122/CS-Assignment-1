@@ -4,7 +4,7 @@ export default function HistoryPage() {
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out', maxWidth: '1280px', margin: '0 auto', padding: '3rem 1.5rem' }}>
       <div style={{ marginBottom: '3rem' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 700, color: '#111827', marginBottom: '1rem' }}>The $60 Million Loop That Forked Ethereum</h2>
+        <h2 style={{ fontSize: '2.5rem', fontWeight: 700, color: '#111827', marginBottom: '1rem' }}>The $70 Million Loop That Forked Ethereum</h2>
         <p style={{ fontSize: '1.25rem', color: '#6b7280' }}>How a single programming pattern altered blockchain history</p>
       </div>
 
@@ -23,16 +23,16 @@ export default function HistoryPage() {
           border: '1px solid #e5e7eb',
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}>
-          <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', marginBottom: '1.5rem' }}>The Narrative</h3>
+          <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', marginBottom: '1.5rem' }}>The DAO Hack: June 2016</h3>
           <div style={{ color: '#4b5563', lineHeight: 1.8, fontSize: '1rem' }}>
             <p style={{ marginBottom: '1rem' }}>
-              In June 2016, "The DAO" (Decentralized Autonomous Organization) was a revolutionary venture capital fund built on Ethereum. It was wildly successful, accumulating over <strong>$150 million USD</strong>—roughly 15% of all circulating ETH at the time.
+              In June 2016, The DAO (Decentralized Autonomous Organization) was a venture capital fund built on Ethereum that raised over <strong>$150 million USD</strong>, representing approximately 15% of all circulating ETH.
             </p>
             <p style={{ marginBottom: '1rem' }}>
-              However, a fatal flaw lurked in its architecture. The contract's <code style={{ background: '#f3f4f6', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'Monaco, monospace' }}>splitDAO</code> function contained a recursive withdrawal vulnerability. Because the contract sent ETH to users <strong>before updating their internal balances</strong>, an attacker deployed a malicious fallback function to repeatedly call the withdrawal function, draining <strong>3.6 million ETH</strong>.
+              A vulnerability in the contract's <code style={{ background: '#f3f4f6', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'Monaco, monospace' }}>splitDAO</code> function allowed recursive withdrawals. The contract transferred ETH <strong>before updating internal balances</strong>, enabling an attacker to drain <strong>3.6 million ETH</strong> (~$70 million) through repeated calls.
             </p>
             <p style={{ marginBottom: '1rem' }}>
-              <strong style={{ color: '#dc2626' }}>The Consequence:</strong> The fallout was so catastrophic that it posed an existential threat to the Ethereum network. To recover the stolen funds, the community controversially voted to hard-fork the blockchain. This decision split the network forever into <strong>Ethereum (ETH)</strong> (where the hack was reversed) and <strong>Ethereum Classic (ETC)</strong> (where the hack remains in the ledger).
+              <strong style={{ color: '#dc2626' }}>Impact:</strong> The community voted to execute a hard fork to recover the stolen funds. This decision permanently split the network into <strong>Ethereum (ETH)</strong> and <strong>Ethereum Classic (ETC)</strong>, with the latter preserving the original transaction history.
             </p>
           </div>
         </div>
@@ -60,11 +60,11 @@ export default function HistoryPage() {
               <span style={{ color: '#c084fc' }}>function</span> <span style={{ color: '#60a5fa' }}>withdrawRewardFor</span>(<span style={{ color: '#c084fc' }}>address</span> _account) <span style={{ color: '#c084fc' }}>public</span> <span style={{ color: '#c084fc' }}>returns</span> (<span style={{ color: '#c084fc' }}>bool</span>) {'{'}{'\n'}
               {'    '}<span style={{ color: '#c084fc' }}>uint</span> reward = rewards[_account];{'\n'}
               {'    '}<span style={{ color: '#c084fc' }}>if</span> (reward &gt; <span style={{ color: '#fbbf24' }}>0</span>) {'{'}{'\n'}
-              {'        '}<span style={{ color: '#9ca3af' }}>// 🚨 VULNERABILITY: External call executes BEFORE balance is zeroed</span>{'\n'}
+              {'        '}<span style={{ color: '#9ca3af' }}>// VULNERABILITY: External call executes BEFORE balance is zeroed</span>{'\n'}
               {'        '}<span style={{ color: '#c084fc' }}>bool</span> success = _account.<span style={{ color: '#60a5fa' }}>call</span>.<span style={{ color: '#60a5fa' }}>value</span>(reward)(<span style={{ color: '#a78bfa' }}>""</span>);{'\n'}
               {'        '}<span style={{ color: '#c084fc' }}>if</span> (!success) <span style={{ color: '#c084fc' }}>return</span> <span style={{ color: '#fbbf24' }}>false</span>;{'\n'}
               {'        '}{'\n'}
-              {'        '}<span style={{ color: '#9ca3af' }}>// 🐌 State update is never reached if the caller re-enters!</span>{'\n'}
+              {'        '}<span style={{ color: '#9ca3af' }}>// State update is never reached if the caller re-enters!</span>{'\n'}
               {'        '}rewards[_account] = <span style={{ color: '#fbbf24' }}>0</span>;{'\n'}
               {'        '}<span style={{ color: '#c084fc' }}>return</span> <span style={{ color: '#fbbf24' }}>true</span>;{'\n'}
               {'    }'}{'\n'}
@@ -172,7 +172,7 @@ export default function HistoryPage() {
               {'  '}<span style={{ color: '#6b7280' }}>// 1. Check balance</span>{'\n'}
               {'  '}<span style={{ color: '#8b5cf6', fontWeight: 600 }}>require</span>(balances[msg.sender] &gt;= amount);{'\n'}
               {'\n'}
-              {'  '}<span style={{ color: '#6b7280' }}>// 2. 🚨 Send ETH (external call)</span>{'\n'}
+              {'  '}<span style={{ color: '#6b7280' }}>// 2. Send ETH (external call)</span>{'\n'}
               {'  '}msg.sender.<span style={{ color: '#3b82f6' }}>call</span>{'{'}value: amount{'}'}("");{'\n'}
               {'\n'}
               {'  '}<span style={{ color: '#6b7280' }}>// 3. Update state (TOO LATE!)</span>{'\n'}

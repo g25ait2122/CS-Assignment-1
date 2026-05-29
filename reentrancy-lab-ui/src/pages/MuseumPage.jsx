@@ -31,14 +31,13 @@ export default function MuseumPage() {
       window.ethereum.on('accountsChanged', (accounts) => setAccount(accounts[0] || ''));
     }
 
-    // 2. SILENT AUTO-SNAPSHOT 
-    // Automatically save the clean lab state as soon as the page loads!
+    // Initialize EVM snapshot
     const initSnapshot = async () => {
       try {
         const directAnvil = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
         const id = await directAnvil.send("evm_snapshot", []);
         setSnapshotId(id);
-        console.log("✅ Silent Checkpoint Saved! ID:", id);
+        console.log("Checkpoint Saved. ID:", id);
       } catch (e) {
         console.log("Anvil not running yet, skipping auto-snapshot.");
       }
@@ -53,32 +52,32 @@ export default function MuseumPage() {
     setAccount(accs[0]);
   };
 
-  // --- 🛠️ LAB ADMIN CONTROLS (EVM Time Machine) ---
+  // EVM snapshot restoration
   const restoreSnapshot = async () => {
     if (!snapshotId) return alert("Checkpoint not found. Refresh the page to auto-save.");
     try {
       const directAnvil = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
       
-      // 1. Get the current nonce BEFORE reverting (This is what MetaMask expects next)
+      // Store current nonce before revert
       const expectedNonce = await provider.getTransactionCount(account);
       
-      // 2. Time travel back to the pristine snapshot (Vaults get their 10 ETH back)
+      // Revert to snapshot state
       await directAnvil.send("evm_revert", [snapshotId]);
       
-      // 3. THE MAGIC FIX: Force Anvil to update its nonce to match MetaMask!
+      // Synchronize MetaMask nonce
       await directAnvil.send("anvil_setNonce", [
         account, 
         ethers.utils.hexlify(expectedNonce)
       ]);
       
-      // 4. Take a new snapshot so we can restore again next time
+      // Create new snapshot
       const newId = await directAnvil.send("evm_snapshot", []);
       setSnapshotId(newId);
       
-      // 5. Force UI to refresh
+      // Trigger UI refresh
       setRefreshKey(prev => prev + 1);
       
-      console.log(`✅ Lab Restored! Synced Anvil Nonce to: ${expectedNonce}`);
+      console.log(`Lab Restored. Synced Anvil Nonce to: ${expectedNonce}`);
       
     } catch (e) {
       console.error("Restore failed:", e);
@@ -238,7 +237,7 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
     }
   };
 
-  // 🚨 Add refreshKey here so it auto-refreshes when the lab is restored!
+  // Auto-refresh when lab is restored
   useEffect(() => { 
     refreshBalances(); 
     setTraceHtml([]); 
@@ -270,7 +269,7 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
       refreshBalances();
       setStatus(`Success! Block ${receipt.blockNumber}. Fetching Trace...`);
 
-      // 🚨 THE FIX: Bypass MetaMask's firewall to fetch the debug trace directly from Anvil
+      // Fetch debug trace directly from Anvil
       const directAnvilProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
       const rawTrace = await directAnvilProvider.send("debug_traceTransaction", [
         receipt.transactionHash, 
@@ -312,7 +311,7 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
         color: isWarning ? '#ef4444' : '#22c55e',
         fontWeight: isWarning ? 700 : 400
       }}>
-        {indent}├─ [{gas} gas] {type} to {toStr} {isWarning && "🚨 REENTRANCY DETECTED"}
+        {indent}├─ [{gas} gas] {type} to {toStr} {isWarning && "[REENTRANCY]"}
       </div>
     );
 
@@ -466,7 +465,7 @@ function UnderTheHood({ exhibitId }) {
         "Because the Vault hasn't updated the balance yet, it sends another 1 ETH.",
         "This loops until the Vault's ETH is completely drained."
       ],
-      code: `function withdraw() external {\n  uint bal = balances[msg.sender];\n  // 🚨 EXTERNAL CALL FIRST\n  (bool s, ) = msg.sender.call{value: bal}("");\n  \n  // 🐌 STATE UPDATED TOO LATE\n  balances[msg.sender] = 0;\n}` 
+      code: `function withdraw() external {\n  uint bal = balances[msg.sender];\n  // External call before state update\n  (bool s, ) = msg.sender.call{value: bal}("");\n  \n  // State updated after external call\n  balances[msg.sender] = 0;\n}` 
     },
     2: {
       title: "How Cross-Function Reentrancy Works",
@@ -477,7 +476,7 @@ function UnderTheHood({ exhibitId }) {
         "Instead of calling claimReward() again, the Attacker calls a DIFFERENT function (like transfer() or withdraw()).",
         "The rewardsClaimed flag hasn't been set to true yet, allowing infinite claims."
       ],
-      code: `function claimReward() external {\n  require(!rewardsClaimed[msg.sender], "Claimed");\n  // 🚨 REWARD SENT FIRST\n  (bool s, ) = msg.sender.call{value: 1 ether}("");\n  \n  // 🐌 FLAG UPDATED TOO LATE\n  rewardsClaimed[msg.sender] = true;\n}` 
+      code: `function claimReward() external {\n  require(!rewardsClaimed[msg.sender], "Claimed");\n  // Reward sent before flag update\n  (bool s, ) = msg.sender.call{value: 1 ether}("");\n  \n  // Flag updated after external call\n  rewardsClaimed[msg.sender] = true;\n}` 
     },
     3: {
       title: "How Read-Only Reentrancy Works",
@@ -488,7 +487,7 @@ function UnderTheHood({ exhibitId }) {
         "The getPrice() Oracle formula (ETH Balance / totalDeposits) mathematically crashes to near zero.",
         "Attacker uses this crashed price to buy massive amounts of tokens from a third-party InnocentProtocol."
       ],
-      code: `function getPrice() external view returns (uint) {\n  // 🚨 If called during a fallback, address(this).balance \n  // is 0, but totalDeposits is still high!\n  return (address(this).balance * 1e18) / totalDeposits;\n}` 
+      code: `function getPrice() external view returns (uint) {\n  // Balance can be manipulated during reentrancy\n  return (address(this).balance * 1e18) / totalDeposits;\n}` 
     },
     4: {
       title: "How Flashloan Amplification Works",
@@ -499,7 +498,7 @@ function UnderTheHood({ exhibitId }) {
         "The massive capital drains the victim vault completely in just a few loops.",
         "Attacker repays the 50 ETH flashloan plus a small fee, keeping the remaining stolen ETH as pure profit."
       ],
-      code: `receive() external payable {\n  if (msg.sender == flashPool) {\n    // 🚨 Massive capital received. Trigger Attack.\n    vault.deposit{value: msg.value}();\n    vault.withdraw();\n    // Repay loan instantly\n    payable(flashPool).transfer(msg.value);\n  }\n}` 
+      code: `receive() external payable {\n  if (msg.sender == flashPool) {\n    vault.deposit{value: msg.value}();\n    vault.withdraw();\n    payable(flashPool).transfer(msg.value);\n  }\n}` 
     }
   };
 

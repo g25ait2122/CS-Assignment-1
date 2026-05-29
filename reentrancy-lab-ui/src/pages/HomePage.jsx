@@ -96,28 +96,28 @@ export default function HomePage() {
             <HomeCard 
               to="/history"
               icon={<BookOpen style={{ color: '#3b82f6' }} size={32} />}
-              title="📖 Historical Analysis"
+              title="Historical Analysis"
               description="Explore the 2016 DAO hack that split the Ethereum network"
               color="blue"
             />
             <HomeCard 
               to="/museum"
               icon={<Activity style={{ color: '#8b5cf6' }} size={32} />}
-              title="⚡ Live Execution"
+              title="Live Execution"
               description="Connect MetaMask and execute a simulated reentrancy exploit on a local EVM"
               color="purple"
             />
             <HomeCard 
               to="/defense"
               icon={<Lock style={{ color: '#16a34a' }} size={32} />}
-              title="🛡️ Defense Patterns"
+              title="Defense Patterns"
               description="Analyze industry-standard mitigations like CEI and Mutex locks"
               color="green"
             />
             <HomeCard 
               to="/research"
               icon={<Cpu style={{ color: '#f97316' }} size={32} />}
-              title="🔬 Future Research"
+              title="Future Research"
               description="Discover how AI and Off-Chain Firewalls are shaping Web3 security"
               color="orange"
             />
