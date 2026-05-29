@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Zap, Eye, DollarSign, PlayCircle, Terminal, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Activity, Zap, Eye, DollarSign, PlayCircle, Terminal, RefreshCw } from 'lucide-react';
 import { ethers } from 'ethers';
 
 // --- PASTE DEPLOYED ADDRESSES HERE ---
@@ -124,49 +124,33 @@ export default function MuseumPage() {
         </button>
       </div>
 
-      {/* 🚨 LAB ADMIN CONTROLS 🚨 */}
+      {/* � CONTRACT ADDRESSES */}
       <div style={{ 
         marginBottom: '2rem', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        background: 'rgba(234, 179, 8, 0.1)', 
-        border: '1px solid rgba(234, 179, 8, 0.3)', 
-        padding: '1rem', 
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+        border: '1px solid #bae6fd', 
+        padding: '1.5rem', 
         borderRadius: '0.75rem' 
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ca8a04' }}>
-          <AlertTriangle size={20} />
-          <div>
-            <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 700 }}>Lab Environment Controls</span>
-            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.8 }}>Use this to reset the vaults to 10 ETH between demos.</span>
-          </div>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0369a1', marginBottom: '1rem' }}>
+          📋 Deployed Contract Addresses
+        </h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+          gap: '0.75rem',
+          fontFamily: 'Monaco, Consolas, monospace',
+          fontSize: '0.75rem'
+        }}>
+          <AddressRow label="Classic Vault" address={ADDR.c_vault} color="#3b82f6" />
+          <AddressRow label="Classic Attacker" address={ADDR.c_attacker} color="#3b82f6" />
+          <AddressRow label="Cross-Function Vault" address={ADDR.x_vault} color="#8b5cf6" />
+          <AddressRow label="Cross-Function Attacker" address={ADDR.x_attacker} color="#8b5cf6" />
+          <AddressRow label="Read-Only Pool" address={ADDR.ro_pool} color="#06b6d4" />
+          <AddressRow label="Read-Only Attacker" address={ADDR.ro_attacker} color="#06b6d4" />
+          <AddressRow label="Flashloan Pool" address={ADDR.f_pool} color="#f97316" />
+          <AddressRow label="Flashloan Attacker" address={ADDR.f_attacker} color="#f97316" />
         </div>
-        
-        <button 
-          onClick={restoreSnapshot} 
-          disabled={!snapshotId}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem', 
-            background: '#ca8a04', 
-            color: 'white', 
-            fontSize: '0.875rem', 
-            padding: '0.75rem 1.5rem', 
-            borderRadius: '0.5rem', 
-            fontWeight: 700, 
-            border: 'none', 
-            cursor: snapshotId ? 'pointer' : 'not-allowed',
-            opacity: snapshotId ? 1 : 0.5,
-            transition: 'all 0.3s',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}
-          onMouseEnter={(e) => { if (snapshotId) e.currentTarget.style.background = '#a16207'; }}
-          onMouseLeave={(e) => { if (snapshotId) e.currentTarget.style.background = '#ca8a04'; }}
-        >
-          <RotateCcw size={18}/> Reset Lab State
-        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth >= 1024 ? '1fr 3fr' : '1fr', gap: '1.5rem' }}>
@@ -187,7 +171,7 @@ export default function MuseumPage() {
           {activeExhibit === 1 && <LiveExecutionPanel provider={provider} account={account} title="Classic Reentrancy" attackerAddr={ADDR.c_attacker} vaultAddr={ADDR.c_vault} exhibitId={1} successMsg="EVM Trace Extracted. Vault Drained completely." refreshKey={refreshKey} />}
           {activeExhibit === 2 && <LiveExecutionPanel provider={provider} account={account} title="Cross-Function" attackerAddr={ADDR.x_attacker} vaultAddr={ADDR.x_vault} exhibitId={2} successMsg="EVM Trace Extracted. Reward Pool Drained." refreshKey={refreshKey} />}
           {activeExhibit === 3 && <LiveExecutionPanel provider={provider} account={account} title="Read-Only Oracle" attackerAddr={ADDR.ro_attacker} vaultAddr={ADDR.ro_pool} attackVal="11" exhibitId={3} successMsg="Oracle Manipulated! Tokens bought at massive discount." refreshKey={refreshKey} />}
-          {activeExhibit === 4 && <LiveExecutionPanel provider={provider} account={account} title="Flashloan Exploit" attackerAddr={ADDR.f_attacker} vaultAddr={ADDR.c_vault} isFlashloan={true} exhibitId={4} successMsg="Flashloan Repaid. Victim Vault Drained via Amplification." refreshKey={refreshKey} />}
+          {activeExhibit === 4 && <LiveExecutionPanel provider={provider} account={account} title="Flashloan Exploit" attackerAddr={ADDR.f_attacker} vaultAddr={ADDR.f_pool} isFlashloan={true} exhibitId={4} successMsg="Flashloan Repaid. Victim Vault Drained via Amplification." refreshKey={refreshKey} />}
         </div>
       </div>
     </div>
@@ -234,8 +218,10 @@ function ExhibitBtn({ id, active, set, title, icon }) {
 function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr, attackVal = "1", isFlashloan = false, successMsg, exhibitId, refreshKey }) {
   const [vBal, setVBal] = useState('...');
   const [aBal, setABal] = useState('...');
+  const [victimBal, setVictimBal] = useState('...'); // For flashloan: the actual drained vault
   const [status, setStatus] = useState('Ready.');
   const [traceHtml, setTraceHtml] = useState([]);
+  const [attackExecuted, setAttackExecuted] = useState(false); // Track if attack was executed
 
   // Fetch Real Balances
   const refreshBalances = async () => {
@@ -244,6 +230,12 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
     const a = await provider.getBalance(attackerAddr);
     setVBal(ethers.utils.formatEther(v));
     setABal(ethers.utils.formatEther(a));
+    
+    // For flashloan, also check the Classic Vault (the actual victim)
+    if (isFlashloan) {
+      const classicVault = await provider.getBalance(ADDR.c_vault);
+      setVictimBal(ethers.utils.formatEther(classicVault));
+    }
   };
 
   // 🚨 Add refreshKey here so it auto-refreshes when the lab is restored!
@@ -289,6 +281,9 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
       const visualTree = parseAnvilTrace(rawTrace, 0);
       setTraceHtml(visualTree);
       setStatus(successMsg);
+      
+      // Mark attack as executed
+      setAttackExecuted(true);
       
     } catch (e) {
       console.error(e);
@@ -348,14 +343,54 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600 }}>Victim Vault ETH</p>
-          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: vBal === '0.0' ? '#ef4444' : '#22c55e' }}>{vBal} ETH</p>
+      <div style={{ display: 'grid', gridTemplateColumns: isFlashloan ? '1fr 1fr 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+        {isFlashloan && (
+          <div style={{ 
+            background: attackExecuted ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)' : '#f3f4f6', 
+            padding: '1rem', 
+            borderRadius: '0.75rem', 
+            border: attackExecuted ? '2px solid #ef4444' : '1px solid #e5e7eb', 
+            boxShadow: attackExecuted ? '0 4px 12px rgba(239,68,68,0.3)' : '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.5s ease'
+          }}>
+            <p style={{ fontSize: '0.875rem', color: attackExecuted ? '#991b1b' : '#6b7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s ease-in-out infinite' }}></span>}
+              Victim Vault {attackExecuted && '• DRAINED'}
+            </p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, color: victimBal === '0.0' ? '#dc2626' : '#22c55e' }}>{victimBal} ETH</p>
+          </div>
+        )}
+        <div style={{ 
+          background: isFlashloan && attackExecuted ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' : !isFlashloan && attackExecuted ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)' : '#f3f4f6', 
+          padding: '1rem', 
+          borderRadius: '0.75rem', 
+          border: isFlashloan && attackExecuted ? '2px solid #16a34a' : !isFlashloan && attackExecuted ? '2px solid #ef4444' : '1px solid #e5e7eb', 
+          boxShadow: attackExecuted ? (isFlashloan ? '0 4px 12px rgba(22,163,74,0.3)' : '0 4px 12px rgba(239,68,68,0.3)') : '0 1px 2px rgba(0,0,0,0.05)',
+          transition: 'all 0.5s ease'
+        }}>
+          <p style={{ fontSize: '0.875rem', color: isFlashloan && attackExecuted ? '#166534' : !isFlashloan && attackExecuted ? '#991b1b' : '#6b7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isFlashloan ? '#16a34a' : '#ef4444', animation: 'pulse 1s ease-in-out infinite' }}></span>}
+            {isFlashloan ? (
+              attackExecuted ? 'Flashloan Pool • REPAID' : 'Flashloan Pool'
+            ) : (
+              attackExecuted ? 'Victim Vault • DRAINED' : 'Victim Vault'
+            )}
+          </p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: !isFlashloan && vBal === '0.0' ? '#dc2626' : '#22c55e' }}>{vBal} ETH</p>
         </div>
-        <div style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600 }}>Attacker Smart Contract</p>
-          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>{aBal} ETH</p>
+        <div style={{ 
+          background: attackExecuted ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' : '#f3f4f6', 
+          padding: '1rem', 
+          borderRadius: '0.75rem', 
+          border: attackExecuted ? '2px solid #f59e0b' : '1px solid #e5e7eb', 
+          boxShadow: attackExecuted ? '0 4px 12px rgba(245,158,11,0.3)' : '0 1px 2px rgba(0,0,0,0.05)',
+          transition: 'all 0.5s ease'
+        }}>
+          <p style={{ fontSize: '0.875rem', color: attackExecuted ? '#92400e' : '#6b7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s ease-in-out infinite' }}></span>}
+            {attackExecuted ? (isFlashloan ? 'Attacker • PROFIT' : 'Attacker • STOLEN') : 'Attacker Balance'}
+          </p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: attackExecuted ? '#b45309' : '#111827' }}>{aBal} ETH</p>
         </div>
       </div>
 
@@ -539,6 +574,90 @@ function UnderTheHood({ exhibitId }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Helper component to display contract addresses
+function AddressRow({ label, address, color }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  
+  // Truncate address: 0x5FbD...0aa3
+  const truncated = `${address.slice(0, 6)}...${address.slice(-4)}`;
+  
+  return (
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: '0.5rem',
+      background: 'white',
+      padding: '0.5rem 0.75rem',
+      borderRadius: '0.5rem',
+      border: `1px solid ${color}20`,
+      position: 'relative'
+    }}>
+      <div style={{ 
+        width: '8px', 
+        height: '8px', 
+        borderRadius: '50%', 
+        background: color,
+        flexShrink: 0
+      }} />
+      <span style={{ 
+        fontSize: '0.75rem', 
+        fontWeight: 600, 
+        color: '#374151',
+        minWidth: '140px'
+      }}>
+        {label}:
+      </span>
+      <code 
+        style={{ 
+          color: color, 
+          fontWeight: 600,
+          fontSize: '0.7rem',
+          cursor: 'pointer',
+          position: 'relative'
+        }}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        {truncated}
+        
+        {/* Tooltip */}
+        {showTooltip && (
+          <div style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginBottom: '0.5rem',
+            background: '#1f2937',
+            color: 'white',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '0.375rem',
+            fontSize: '0.7rem',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.2)',
+            zIndex: 50,
+            pointerEvents: 'none'
+          }}>
+            {address}
+            {/* Tooltip arrow */}
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #1f2937'
+            }} />
+          </div>
+        )}
+      </code>
     </div>
   );
 }

