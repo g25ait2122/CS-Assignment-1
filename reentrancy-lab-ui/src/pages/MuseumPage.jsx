@@ -1,376 +1,542 @@
-import { useState } from 'react';
-import { Activity, Zap, Eye, DollarSign, PlayCircle, Terminal, ShieldAlert, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, Zap, Eye, DollarSign, PlayCircle, Terminal, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react';
 import { ethers } from 'ethers';
 
-// --- REPLACE WITH YOUR ANVIL ADDRESSES ---
-const VAULT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const ATTACKER_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+// --- PASTE DEPLOYED ADDRESSES HERE ---
+const ADDR = {
+    c_vault: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    c_attacker: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    x_vault: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    x_attacker: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    ro_pool: "0x0165878A594ca255338adfa4d48449f69242Eb8F",     // Fixed!
+    ro_attacker: "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    f_pool: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    f_attacker: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
+};
 
 export default function MuseumPage() {
-  const [activeExhibit, setActiveExhibit] = useState(2); // Default to Cross-Function
-
-  const attacks = [
-    { id: 1, title: "Classic Reentrancy", icon: <Zap size={20} />, status: "Legacy Vulnerability", color: "#3b82f6" },
-    { id: 2, title: "Cross-Function", icon: <Activity size={20} />, status: "Web3 Live Demo", color: "#8b5cf6" },
-    { id: 3, title: "Read-Only Reentrancy", icon: <Eye size={20} />, status: "DeFi Oracle Exploit", color: "#06b6d4" },
-    { id: 4, title: "Flashloan Amplified", icon: <DollarSign size={20} />, status: "Composability Nightmare", color: "#f97316" }
-  ];
-
-  return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out', maxWidth: '1280px', margin: '0 auto', padding: '3rem 1.5rem' }}>
-      
-      <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 700, color: '#111827', marginBottom: '1rem' }}>The Taxonomy of Reentrancy</h2>
-        <p style={{ fontSize: '1.25rem', color: '#6b7280' }}>Interact with the exhibits to see how the EVM's most notorious bug evolved.</p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth >= 1024 ? '1fr 2fr' : '1fr', gap: '2rem' }}>
-        
-        {/* LEFT COLUMN: The Family Tree Navigation */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#111827', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select Exhibit</h3>
-          
-          {attacks.map((attack) => (
-            <button
-              key={attack.id}
-              onClick={() => setActiveExhibit(attack.id)}
-              style={{
-                width: '100%',
-                textAlign: 'left',
-                padding: '1rem',
-                borderRadius: '0.75rem',
-                border: `2px solid ${activeExhibit === attack.id ? attack.color : '#e5e7eb'}`,
-                background: activeExhibit === attack.id ? `${attack.color}15` : 'white',
-                boxShadow: activeExhibit === attack.id ? '0 4px 6px rgba(0,0,0,0.1)' : 'none',
-                transform: activeExhibit === attack.id ? 'scale(1.02)' : 'scale(1)',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem'
-              }}
-              onMouseEnter={(e) => {
-                if (activeExhibit !== attack.id) {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeExhibit !== attack.id) {
-                  e.currentTarget.style.borderColor = '#e5e7eb';
-                }
-              }}
-            >
-              <div style={{
-                padding: '0.75rem',
-                borderRadius: '0.5rem',
-                background: `${attack.color}20`,
-                color: attack.color
-              }}>
-                {attack.icon}
-              </div>
-              <div>
-                <h4 style={{ fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>{attack.title}</h4>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: attack.color }}>
-                  {attack.status}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* RIGHT COLUMN: The Interactive Demo Area */}
-        <div style={{
-          background: 'white',
-          borderRadius: '1rem',
-          border: '2px solid #e5e7eb',
-          padding: '2rem',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-          minHeight: '500px'
-        }}>
-          {activeExhibit === 1 && <ClassicExhibit />}
-          {activeExhibit === 2 && <CrossFunctionExhibit />}
-          {activeExhibit === 3 && <ReadOnlyExhibit />}
-          {activeExhibit === 4 && <FlashloanExhibit />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// EXHIBIT 1: Classic Reentrancy (Trace Demo)
-// ==========================================
-function ClassicExhibit() {
-  const [logs, setLogs] = useState([]);
-  const [isExecuting, setIsExecuting] = useState(false);
-
-  const runTrace = async () => {
-    setIsExecuting(true);
-    setLogs([]);
-    const trace = [
-      "[124846] Attacker::attack{value: 1 ETH}()",
-      " ├─ [22537] Vault::deposit{value: 1 ETH}()",
-      " ├─ [92523] Vault::withdraw()",
-      " │  ├─ [84858] Attacker::receive{value: 1 ETH}() 🚨 REENTER",
-      " │  │  ├─ [84069] Vault::withdraw()",
-      " │  │  │  ├─ [76404] Attacker::receive{value: 1 ETH}() 🚨 REENTER",
-      " │  │  │  │  ├─ [75615] Vault::withdraw()",
-      " │  │  │  │  │  ├─ SYSTEM: LOOP CONTINUES UNTIL DRAINED...",
-      " └─ ← [Stop] Vault Balance: 0 ETH"
-    ];
-
-    for (let i = 0; i < trace.length; i++) {
-      await new Promise(r => setTimeout(r, 600));
-      setLogs(prev => [...prev, trace[i]]);
-    }
-    setIsExecuting(false);
-  };
-
-  return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <Zap style={{ color: '#3b82f6' }} /> Classic Reentrancy
-      </h3>
-      <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>A single function is recursively called before the balance state is updated.</p>
-      
-      <div style={{
-        background: '#0a0a0a',
-        color: '#22c55e',
-        fontFamily: 'Monaco, Consolas, monospace',
-        padding: '1rem',
-        borderRadius: '0.75rem',
-        flex: 1,
-        border: '1px solid #27272a',
-        overflowY: 'auto'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #27272a', paddingBottom: '0.5rem' }}>
-          <span style={{ color: '#9ca3af', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Terminal size={16}/> EVM Call Trace Simulator
-          </span>
-          <button 
-            onClick={runTrace} 
-            disabled={isExecuting} 
-            style={{
-              background: '#3b82f6',
-              color: 'white',
-              padding: '0.25rem 1rem',
-              borderRadius: '0.25rem',
-              fontSize: '0.875rem',
-              border: 'none',
-              cursor: isExecuting ? 'not-allowed' : 'pointer',
-              opacity: isExecuting ? 0.5 : 1
-            }}
-          >
-            {isExecuting ? 'Executing...' : 'Run Simulation'}
-          </button>
-        </div>
-        
-        {logs.map((log, i) => (
-          <div key={i} style={{ paddingTop: '0.25rem', paddingBottom: '0.25rem', color: log.includes('🚨') ? '#ef4444' : '#22c55e', fontWeight: log.includes('🚨') ? 700 : 400 }}>
-            {log}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// EXHIBIT 2: Cross-Function (The Web3 Demo)
-// ==========================================
-function CrossFunctionExhibit() {
+  const [activeExhibit, setActiveExhibit] = useState(1);
   const [account, setAccount] = useState('');
-  const [status, setStatus] = useState('Connect wallet to begin.');
+  const [provider, setProvider] = useState(null);
+  
+  // NEW: State for our Blockchain Time Machine
+  const [snapshotId, setSnapshotId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const connectWallet = async () => {
-    if (!window.ethereum) return alert("Install MetaMask!");
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    const signer = provider.getSigner();
-    setAccount(await signer.getAddress());
-    setStatus('Ready to execute smart contract exploit.');
+  useEffect(() => {
+    // 1. Setup MetaMask Provider
+    if (window.ethereum) {
+      const p = new ethers.providers.Web3Provider(window.ethereum);
+      setProvider(p);
+      window.ethereum.on('accountsChanged', (accounts) => setAccount(accounts[0] || ''));
+    }
+
+    // 2. SILENT AUTO-SNAPSHOT 
+    // Automatically save the clean lab state as soon as the page loads!
+    const initSnapshot = async () => {
+      try {
+        const directAnvil = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+        const id = await directAnvil.send("evm_snapshot", []);
+        setSnapshotId(id);
+        console.log("✅ Silent Checkpoint Saved! ID:", id);
+      } catch (e) {
+        console.log("Anvil not running yet, skipping auto-snapshot.");
+      }
+    };
+    initSnapshot();
+    
+  }, []);
+
+  const connectMetaMask = async () => {
+    if (!provider) return alert("Install MetaMask!");
+    const accs = await provider.send("eth_requestAccounts", []);
+    setAccount(accs[0]);
   };
 
-  const executeAttack = async () => {
-    if (!account) return alert("Connect Wallet First!");
-    setStatus('MetaMask opened. Please confirm transaction...');
-    setTimeout(() => setStatus('🚨 EXPLOIT SUCCESSFUL! VAULT DRAINED.'), 3000);
-  };
-
-  return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <Activity style={{ color: '#8b5cf6' }} /> DeFi Yield Vault Exploit
-      </h3>
-      <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Attacker deposits standard ERC20, but the callback on the ETH reward function drains the vault.</p>
-
-      <div style={{
-        background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-        border: '2px solid #c084fc',
-        borderRadius: '0.75rem',
-        padding: '1.5rem',
-        textAlign: 'center',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center'
-      }}>
-        <ShieldAlert size={48} style={{ color: '#8b5cf6', marginBottom: '1rem' }} />
-        <h4 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Web3 Execution Panel</h4>
-        
-        <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ background: 'white', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '10rem', textAlign: 'center', border: '1px solid #e5e7eb' }}>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Vault Balance</p>
-            <p style={{ fontSize: '1.25rem', fontWeight: 700, color: '#16a34a' }}>10.0 ETH</p>
-          </div>
-          <div style={{ background: 'white', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '10rem', textAlign: 'center', border: '1px solid #e5e7eb' }}>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Hacker Loot</p>
-            <p style={{ fontSize: '1.25rem', fontWeight: 700, color: '#dc2626' }}>0.0 ETH</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button 
-            onClick={connectWallet} 
-            style={{
-              background: '#1f2937',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              borderRadius: '0.5rem',
-              fontWeight: 700,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'background 0.3s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#374151'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#1f2937'}
-          >
-            {account ? `Connected: ${account.substring(0,6)}...` : 'Connect MetaMask'}
-          </button>
-          <button 
-            onClick={executeAttack} 
-            disabled={!account} 
-            style={{
-              background: '#8b5cf6',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              borderRadius: '0.5rem',
-              fontWeight: 700,
-              border: 'none',
-              cursor: account ? 'pointer' : 'not-allowed',
-              opacity: account ? 1 : 0.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              transition: 'background 0.3s'
-            }}
-            onMouseEnter={(e) => { if (account) e.currentTarget.style.background = '#7c3aed'; }}
-            onMouseLeave={(e) => { if (account) e.currentTarget.style.background = '#8b5cf6'; }}
-          >
-            <PlayCircle size={20} /> Execute Exploit
-          </button>
-        </div>
-        <p style={{ marginTop: '1rem', fontSize: '0.875rem', fontWeight: 700, color: '#8b5cf6' }}>{status}</p>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// EXHIBIT 3: Read-Only Reentrancy
-// ==========================================
-function ReadOnlyExhibit() {
-  return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <Eye style={{ color: '#06b6d4' }} /> Read-Only Reentrancy
-      </h3>
-      <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Manipulating an oracle price to steal from an innocent third-party protocol.</p>
+  // --- 🛠️ LAB ADMIN CONTROLS (EVM Time Machine) ---
+  const restoreSnapshot = async () => {
+    if (!snapshotId) return alert("Checkpoint not found. Refresh the page to auto-save.");
+    try {
+      const directAnvil = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
       
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1.5rem' }}>
-        {/* Contract A */}
-        <div style={{ background: 'white', border: '2px solid #fca5a5', padding: '1rem', borderRadius: '0.5rem', width: '100%', maxWidth: '28rem', position: 'relative' }}>
-          <h4 style={{ fontWeight: 700, color: '#dc2626', marginBottom: '0.5rem' }}>1. Vulnerable Liquidity Pool</h4>
-          <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>Attacker triggers fallback. Real ETH balance is 0, but `totalDeposits` state is still 100.</p>
-          <p style={{ fontFamily: 'Monaco, monospace', fontSize: '0.75rem', marginTop: '0.5rem', background: '#fef2f2', padding: '0.5rem', borderRadius: '0.25rem', color: '#991b1b' }}>getVirtualPrice() = 0 (Manipulated!)</p>
-          
-          <div style={{ position: 'absolute', bottom: '-2rem', left: '50%', transform: 'translateX(-50%)', color: '#06b6d4' }}>
-            <ArrowRight style={{ transform: 'rotate(90deg)' }} size={24} />
+      // 1. Get the current nonce BEFORE reverting (This is what MetaMask expects next)
+      const expectedNonce = await provider.getTransactionCount(account);
+      
+      // 2. Time travel back to the pristine snapshot (Vaults get their 10 ETH back)
+      await directAnvil.send("evm_revert", [snapshotId]);
+      
+      // 3. THE MAGIC FIX: Force Anvil to update its nonce to match MetaMask!
+      await directAnvil.send("anvil_setNonce", [
+        account, 
+        ethers.utils.hexlify(expectedNonce)
+      ]);
+      
+      // 4. Take a new snapshot so we can restore again next time
+      const newId = await directAnvil.send("evm_snapshot", []);
+      setSnapshotId(newId);
+      
+      // 5. Force UI to refresh
+      setRefreshKey(prev => prev + 1);
+      
+      console.log(`✅ Lab Restored! Synced Anvil Nonce to: ${expectedNonce}`);
+      
+    } catch (e) {
+      console.error("Restore failed:", e);
+      alert("Failed to restore snapshot.");
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '3rem 1.5rem' }}>
+      
+      {/* Header & Wallet Connect */}
+      <div style={{ 
+        marginBottom: '1rem', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        background: '#111827', 
+        padding: '1rem', 
+        borderRadius: '0.75rem', 
+        color: 'white',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)' 
+      }}>
+        <div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>The Attack Museum (Live Mode)</h2>
+          <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Executing real smart contracts on local Anvil node.</p>
+        </div>
+        <button 
+          onClick={connectMetaMask} 
+          style={{ 
+            background: '#2563eb', 
+            color: 'white', 
+            padding: '0.5rem 1.5rem', 
+            borderRadius: '0.5rem', 
+            fontWeight: 700, 
+            border: 'none', 
+            cursor: 'pointer',
+            transition: 'all 0.3s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#1d4ed8'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#2563eb'}
+        >
+          {account ? `Connected: ${account.substring(0,6)}...` : 'Connect MetaMask (Attacker)'}
+        </button>
+      </div>
+
+      {/* 🚨 LAB ADMIN CONTROLS 🚨 */}
+      <div style={{ 
+        marginBottom: '2rem', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        background: 'rgba(234, 179, 8, 0.1)', 
+        border: '1px solid rgba(234, 179, 8, 0.3)', 
+        padding: '1rem', 
+        borderRadius: '0.75rem' 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ca8a04' }}>
+          <AlertTriangle size={20} />
+          <div>
+            <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 700 }}>Lab Environment Controls</span>
+            <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.8 }}>Use this to reset the vaults to 10 ETH between demos.</span>
           </div>
         </div>
+        
+        <button 
+          onClick={restoreSnapshot} 
+          disabled={!snapshotId}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.5rem', 
+            background: '#ca8a04', 
+            color: 'white', 
+            fontSize: '0.875rem', 
+            padding: '0.75rem 1.5rem', 
+            borderRadius: '0.5rem', 
+            fontWeight: 700, 
+            border: 'none', 
+            cursor: snapshotId ? 'pointer' : 'not-allowed',
+            opacity: snapshotId ? 1 : 0.5,
+            transition: 'all 0.3s',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+          onMouseEnter={(e) => { if (snapshotId) e.currentTarget.style.background = '#a16207'; }}
+          onMouseLeave={(e) => { if (snapshotId) e.currentTarget.style.background = '#ca8a04'; }}
+        >
+          <RotateCcw size={18}/> Reset Lab State
+        </button>
+      </div>
 
-        {/* Contract B */}
-        <div style={{ background: 'white', border: '2px solid #86efac', padding: '1rem', borderRadius: '0.5rem', width: '100%', maxWidth: '28rem', marginTop: '2rem' }}>
-          <h4 style={{ fontWeight: 700, color: '#16a34a', marginBottom: '0.5rem' }}>2. Innocent DeFi Protocol</h4>
-          <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>Reads the manipulated price from the Liquidity Pool.</p>
-          <p style={{ fontFamily: 'Monaco, monospace', fontSize: '0.75rem', marginTop: '0.5rem', background: '#f0fdf4', padding: '0.5rem', borderRadius: '0.25rem', color: '#166534' }}>Attacker buys 10,000 tokens for 0 ETH.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth >= 1024 ? '1fr 3fr' : '1fr', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <ExhibitBtn id={1} active={activeExhibit} set={setActiveExhibit} title="Classic Reentrancy" icon={<Zap/>} />
+          <ExhibitBtn id={2} active={activeExhibit} set={setActiveExhibit} title="Cross-Function" icon={<Activity/>} />
+          <ExhibitBtn id={3} active={activeExhibit} set={setActiveExhibit} title="Read-Only Oracle" icon={<Eye/>} />
+          <ExhibitBtn id={4} active={activeExhibit} set={setActiveExhibit} title="Flashloan Attack" icon={<DollarSign/>} />
+        </div>
+
+        <div style={{ 
+          background: 'white', 
+          borderRadius: '0.75rem', 
+          border: '1px solid #e5e7eb', 
+          padding: '1.5rem', 
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)' 
+        }}>
+          {activeExhibit === 1 && <LiveExecutionPanel provider={provider} account={account} title="Classic Reentrancy" attackerAddr={ADDR.c_attacker} vaultAddr={ADDR.c_vault} exhibitId={1} successMsg="EVM Trace Extracted. Vault Drained completely." refreshKey={refreshKey} />}
+          {activeExhibit === 2 && <LiveExecutionPanel provider={provider} account={account} title="Cross-Function" attackerAddr={ADDR.x_attacker} vaultAddr={ADDR.x_vault} exhibitId={2} successMsg="EVM Trace Extracted. Reward Pool Drained." refreshKey={refreshKey} />}
+          {activeExhibit === 3 && <LiveExecutionPanel provider={provider} account={account} title="Read-Only Oracle" attackerAddr={ADDR.ro_attacker} vaultAddr={ADDR.ro_pool} attackVal="11" exhibitId={3} successMsg="Oracle Manipulated! Tokens bought at massive discount." refreshKey={refreshKey} />}
+          {activeExhibit === 4 && <LiveExecutionPanel provider={provider} account={account} title="Flashloan Exploit" attackerAddr={ADDR.f_attacker} vaultAddr={ADDR.c_vault} isFlashloan={true} exhibitId={4} successMsg="Flashloan Repaid. Victim Vault Drained via Amplification." refreshKey={refreshKey} />}
         </div>
       </div>
     </div>
   );
 }
 
-// ==========================================
-// EXHIBIT 4: Flashloan Amplified
-// ==========================================
-function FlashloanExhibit() {
-  const steps = [
-    { num: 1, title: "Borrow $50M Flashloan", desc: "Attacker borrows immense capital from Aave with zero collateral.", color: "#f97316" },
-    { num: 2, title: "Execute Reentrancy Loop", desc: "Using the $50M to manipulate pool math, draining the victim contract entirely.", color: "#dc2626" },
-    { num: 3, title: "Repay Loan + Keep Profit", desc: "The $50M + fee is returned to Aave. Attacker walks away with $10M profit in one block.", color: "#16a34a" }
-  ];
+function ExhibitBtn({ id, active, set, title, icon }) {
+  const isActive = active === id;
+  return (
+    <button 
+      onClick={() => set(id)} 
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        padding: '1rem',
+        borderRadius: '0.5rem',
+        fontWeight: 700,
+        transition: 'all 0.3s',
+        border: 'none',
+        cursor: 'pointer',
+        background: isActive ? '#2563eb' : '#f3f4f6',
+        color: isActive ? 'white' : '#6b7280',
+        boxShadow: isActive ? '0 4px 6px rgba(0,0,0,0.1)' : 'none'
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = '#e5e7eb';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = '#f3f4f6';
+        }
+      }}
+    >
+      {icon} {title}
+    </button>
+  );
+}
+
+// --- THE REAL-TIME EXECUTION ENGINE ---
+function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr, attackVal = "1", isFlashloan = false, successMsg, exhibitId, refreshKey }) {
+  const [vBal, setVBal] = useState('...');
+  const [aBal, setABal] = useState('...');
+  const [status, setStatus] = useState('Ready.');
+  const [traceHtml, setTraceHtml] = useState([]);
+
+  // Fetch Real Balances
+  const refreshBalances = async () => {
+    if (!provider) return;
+    const v = await provider.getBalance(vaultAddr);
+    const a = await provider.getBalance(attackerAddr);
+    setVBal(ethers.utils.formatEther(v));
+    setABal(ethers.utils.formatEther(a));
+  };
+
+  // 🚨 Add refreshKey here so it auto-refreshes when the lab is restored!
+  useEffect(() => { 
+    refreshBalances(); 
+    setTraceHtml([]); 
+    setStatus('Ready.');
+  }, [provider, vaultAddr, refreshKey]);
+
+  const executeRealAttack = async () => {
+    if (!account) return alert("Connect MetaMask first!");
+    setStatus('Confirm in MetaMask...');
+    setTraceHtml([]);
+
+    try {
+      const signer = provider.getSigner();
+      
+      // ABI for our Attack functions
+      const abi = isFlashloan ? ["function attack(uint256 amount) external"] : ["function attack() external payable"];
+      const contract = new ethers.Contract(attackerAddr, abi, signer);
+
+      let tx;
+      if (isFlashloan) {
+        tx = await contract.attack(ethers.utils.parseEther("10")); // Borrow 10 ETH
+      } else {
+        tx = await contract.attack({ value: ethers.utils.parseEther(attackVal) });
+      }
+
+      setStatus('Tx Sent! Mining block & extracting EVM trace...');
+      const receipt = await tx.wait();
+      
+      refreshBalances();
+      setStatus(`Success! Block ${receipt.blockNumber}. Fetching Trace...`);
+
+      // 🚨 THE FIX: Bypass MetaMask's firewall to fetch the debug trace directly from Anvil
+      const directAnvilProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+      const rawTrace = await directAnvilProvider.send("debug_traceTransaction", [
+        receipt.transactionHash, 
+        { tracer: "callTracer" }
+      ]);
+
+      // Parse the JSON tree visually
+      const visualTree = parseAnvilTrace(rawTrace, 0);
+      setTraceHtml(visualTree);
+      setStatus(successMsg);
+      
+    } catch (e) {
+      console.error(e);
+      setStatus('Transaction Reverted or Rejected.');
+    }
+  };
+
+  // Recursively format the raw Anvil trace into a UI tree
+  const parseAnvilTrace = (node, depth) => {
+    let lines = [];
+    const indent = "  ".repeat(depth);
+    
+    // Fallbacks in case node structure varies
+    const gas = node.gasUsed ? parseInt(node.gasUsed, 16) : 0;
+    let toStr = node.to ? `${node.to.substring(0,8)}...` : 'ContractCreation';
+    let type = node.type || 'CALL';
+    
+    // Check for reentrancy warning visually (depth > 1 means it re-entered!)
+    const isWarning = depth > 1 && type === 'CALL';
+    
+    lines.push(
+      <div key={Math.random()} style={{
+        fontFamily: 'Monaco, Consolas, monospace',
+        fontSize: '0.75rem',
+        marginBottom: '0.25rem',
+        color: isWarning ? '#ef4444' : '#22c55e',
+        fontWeight: isWarning ? 700 : 400
+      }}>
+        {indent}├─ [{gas} gas] {type} to {toStr} {isWarning && "🚨 REENTRANCY DETECTED"}
+      </div>
+    );
+
+    if (node.calls && node.calls.length > 0) {
+      node.calls.forEach(child => {
+        lines = lines.concat(parseAnvilTrace(child, depth + 1));
+      });
+    }
+    return lines;
+  };
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <DollarSign style={{ color: '#f97316' }} /> Flashloan Amplified
-      </h3>
-      <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Exploiting composability by borrowing millions of dollars with zero collateral to maximize reentrancy damage.</p>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>{title}</h3>
+        <button 
+          onClick={refreshBalances} 
+          style={{ 
+            color: '#9ca3af', 
+            background: 'transparent', 
+            border: 'none', 
+            cursor: 'pointer' 
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+        >
+          <RefreshCw size={18}/>
+        </button>
+      </div>
 
-      <div style={{ flex: 1, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.75rem', padding: '1.5rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative' }}>
-          
-          {steps.map((step, idx) => (
-            <div key={step.num} style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
-              <div style={{
-                background: step.color,
-                color: 'white',
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '9999px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                flexShrink: 0,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                {step.num}
-              </div>
-              <div style={{
-                flex: 1,
-                background: 'white',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-              }}>
-                <h4 style={{ fontWeight: 700, color: step.color, marginBottom: '0.25rem' }}>{step.title}</h4>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{step.desc}</p>
-              </div>
-              {idx < steps.length - 1 && (
-                <div style={{
-                  position: 'absolute',
-                  left: '1.25rem',
-                  top: '2.5rem',
-                  bottom: '-1.5rem',
-                  width: '2px',
-                  background: 'linear-gradient(to bottom, transparent, #f97316, transparent)'
-                }} />
-              )}
-            </div>
-          ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600 }}>Victim Vault ETH</p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: vBal === '0.0' ? '#ef4444' : '#22c55e' }}>{vBal} ETH</p>
+        </div>
+        <div style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600 }}>Attacker Smart Contract</p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>{aBal} ETH</p>
+        </div>
+      </div>
+
+      <button 
+        onClick={executeRealAttack} 
+        style={{ 
+          width: '100%', 
+          background: '#dc2626', 
+          color: 'white', 
+          fontWeight: 700, 
+          padding: '1rem', 
+          borderRadius: '0.75rem', 
+          marginBottom: '1rem', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: '0.5rem',
+          border: 'none',
+          cursor: 'pointer',
+          boxShadow: '0 0 15px rgba(220,38,38,0.5)',
+          transition: 'all 0.3s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = '#b91c1c'}
+        onMouseLeave={(e) => e.currentTarget.style.background = '#dc2626'}
+      >
+        <PlayCircle/> Execute Exploit (MetaMask)
+      </button>
+
+      <p style={{ fontSize: '0.875rem', fontWeight: 700, textAlign: 'center', color: '#eab308', marginBottom: '1.5rem' }}>{status}</p>
+
+      <div style={{ 
+        background: '#0a0a0a', 
+        padding: '1rem', 
+        borderRadius: '0.75rem', 
+        border: '1px solid #27272a', 
+        height: '16rem', 
+        overflowY: 'auto',
+        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
+        marginBottom: '2rem'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.5rem', 
+          color: '#6b7280', 
+          fontSize: '0.75rem', 
+          marginBottom: '0.75rem', 
+          borderBottom: '1px solid #27272a', 
+          paddingBottom: '0.5rem' 
+        }}>
+          <Terminal size={14}/> LIVE RPC `debug_traceTransaction` 
+        </div>
+        {traceHtml.length > 0 ? traceHtml : <p style={{ color: '#4b5563', fontFamily: 'Monaco, Consolas, monospace', fontSize: '0.875rem' }}>Awaiting execution...</p>}
+      </div>
+
+      {/* NEW: Under the hood explanation */}
+      <UnderTheHood exhibitId={exhibitId} />
+    </div>
+  );
+}
+
+// --- NEW COMPONENT: UNDER THE HOOD EXPLANATIONS ---
+function UnderTheHood({ exhibitId }) {
+  const content = {
+    1: {
+      title: "How Classic Reentrancy Works",
+      steps: [
+        "Attacker calls attack(), depositing 1 ETH into the Vault.",
+        "Attacker calls withdraw(). The Vault verifies the 1 ETH balance.",
+        "Vault sends 1 ETH to the Attacker using msg.sender.call().",
+        "This triggers the Attacker's receive() fallback function.",
+        "Inside receive(), the Attacker calls withdraw() AGAIN.",
+        "Because the Vault hasn't updated the balance yet, it sends another 1 ETH.",
+        "This loops until the Vault's ETH is completely drained."
+      ],
+      code: `function withdraw() external {\n  uint bal = balances[msg.sender];\n  // 🚨 EXTERNAL CALL FIRST\n  (bool s, ) = msg.sender.call{value: bal}("");\n  \n  // 🐌 STATE UPDATED TOO LATE\n  balances[msg.sender] = 0;\n}` 
+    },
+    2: {
+      title: "How Cross-Function Reentrancy Works",
+      steps: [
+        "Attacker deposits standard tokens (e.g. USDC).",
+        "Attacker calls claimReward() to get their ETH reward.",
+        "Vault sends the ETH reward, triggering the Attacker's receive() function.",
+        "Instead of calling claimReward() again, the Attacker calls a DIFFERENT function (like transfer() or withdraw()).",
+        "The rewardsClaimed flag hasn't been set to true yet, allowing infinite claims."
+      ],
+      code: `function claimReward() external {\n  require(!rewardsClaimed[msg.sender], "Claimed");\n  // 🚨 REWARD SENT FIRST\n  (bool s, ) = msg.sender.call{value: 1 ether}("");\n  \n  // 🐌 FLAG UPDATED TOO LATE\n  rewardsClaimed[msg.sender] = true;\n}` 
+    },
+    3: {
+      title: "How Read-Only Reentrancy Works",
+      steps: [
+        "Attacker deposits 10 ETH into the Liquidity Pool and immediately withdraws it.",
+        "During the withdrawal, the Pool sends the ETH back, triggering receive().",
+        "At this exact moment, the Pool's ETH balance is depleted, but totalDeposits hasn't updated yet.",
+        "The getPrice() Oracle formula (ETH Balance / totalDeposits) mathematically crashes to near zero.",
+        "Attacker uses this crashed price to buy massive amounts of tokens from a third-party InnocentProtocol."
+      ],
+      code: `function getPrice() external view returns (uint) {\n  // 🚨 If called during a fallback, address(this).balance \n  // is 0, but totalDeposits is still high!\n  return (address(this).balance * 1e18) / totalDeposits;\n}` 
+    },
+    4: {
+      title: "How Flashloan Amplification Works",
+      steps: [
+        "Attacker doesn't have funds. They borrow 50 ETH from a Flashloan pool.",
+        "The Flashloan pool sends 50 ETH and calls the Attacker's executeOperation() callback.",
+        "Inside the callback, the Attacker uses the massive 50 ETH capital to trigger a classic reentrancy loop.",
+        "The massive capital drains the victim vault completely in just a few loops.",
+        "Attacker repays the 50 ETH flashloan plus a small fee, keeping the remaining stolen ETH as pure profit."
+      ],
+      code: `receive() external payable {\n  if (msg.sender == flashPool) {\n    // 🚨 Massive capital received. Trigger Attack.\n    vault.deposit{value: msg.value}();\n    vault.withdraw();\n    // Repay loan instantly\n    payable(flashPool).transfer(msg.value);\n  }\n}` 
+    }
+  };
+
+  const data = content[exhibitId];
+
+  return (
+    <div style={{ 
+      background: '#f9fafb', 
+      borderRadius: '0.75rem', 
+      border: '1px solid #e5e7eb', 
+      padding: '1.5rem',
+      animation: 'fadeIn 0.5s ease-out'
+    }}>
+      <h4 style={{ 
+        fontSize: '1.125rem', 
+        fontWeight: 700, 
+        color: '#111827', 
+        marginBottom: '1rem', 
+        borderBottom: '1px solid #e5e7eb', 
+        paddingBottom: '0.5rem' 
+      }}>
+        ⚙️ Under the Hood: {data.title}
+      </h4>
+      
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: window.innerWidth >= 768 ? '1fr 1fr' : '1fr', 
+        gap: '1.5rem' 
+      }}>
+        <div>
+          <h5 style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: 700, 
+            color: '#6b7280', 
+            textTransform: 'uppercase', 
+            marginBottom: '0.75rem' 
+          }}>Execution Flow</h5>
+          <ol style={{ 
+            listStyleType: 'decimal', 
+            listStylePosition: 'inside', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '0.5rem', 
+            fontSize: '0.875rem', 
+            color: '#374151' 
+          }}>
+            {data.steps.map((step, i) => (
+              <li key={i} style={{ lineHeight: '1.6' }}>{step}</li>
+            ))}
+          </ol>
+        </div>
+        
+        <div>
+          <h5 style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: 700, 
+            color: '#6b7280', 
+            textTransform: 'uppercase', 
+            marginBottom: '0.75rem' 
+          }}>Vulnerable Code</h5>
+          <div style={{ 
+            background: '#111827', 
+            borderRadius: '0.5rem', 
+            padding: '1rem', 
+            fontFamily: 'Monaco, Consolas, monospace', 
+            fontSize: '0.75rem', 
+            color: '#93c5fd', 
+            overflowX: 'auto', 
+            border: '1px solid #374151' 
+          }}>
+            <pre>{data.code}</pre>
+          </div>
         </div>
       </div>
     </div>
