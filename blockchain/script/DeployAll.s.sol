@@ -22,9 +22,11 @@ contract DeployAll is Script {
 
         // 3. ReadOnly
         ReadOnlyPool roPool = new ReadOnlyPool();
-        InnocentProtocol roVictim = new InnocentProtocol(address(roPool));
-        ReadOnlyAttacker roAttacker = new ReadOnlyAttacker(address(roPool), address(roVictim));
+        InnocentProtocol roVictim = new InnocentProtocol(payable(address(roPool)));
+        ReadOnlyAttacker roAttacker = new ReadOnlyAttacker(payable(address(roPool)), address(roVictim));
         roPool.deposit{value: 10 ether}(); // Innocent users fund pool
+        (bool success, ) = payable(address(roPool)).call{value: 10 ether}(""); // Add extra liquidity
+        require(success, "Extra liquidity transfer failed");
 
         // 4. Flashloan
         MockFlashloan flash = new MockFlashloan();
@@ -41,6 +43,7 @@ contract DeployAll is Script {
         console.log("X_ATTACKER:", address(xAttacker));
         console.log("RO_POOL:", address(roPool));
         console.log("RO_ATTACKER:", address(roAttacker));
+        console.log("RO_INNOCENT:", address(roVictim));
         console.log("F_POOL:", address(flash));
         console.log("F_ATTACKER:", address(fAttacker));
     }
