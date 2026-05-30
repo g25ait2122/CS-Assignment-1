@@ -54,6 +54,9 @@ contract CrossAttacker {
 contract ReadOnlyPool {
     mapping(address => uint) public balances;
     uint public totalDeposits;
+    
+    receive() external payable {}
+    
     function deposit() external payable {
         balances[msg.sender] += msg.value;
         totalDeposits += msg.value;
@@ -73,16 +76,17 @@ contract ReadOnlyPool {
 contract InnocentProtocol {
     ReadOnlyPool pool;
     mapping(address => uint) public tokens;
-    constructor(address _p) { pool = ReadOnlyPool(_p); }
+    constructor(address payable _p) { pool = ReadOnlyPool(_p); }
     function buyTokens() external payable {
         uint price = pool.getPrice();
-        tokens[msg.sender] += (msg.value * 1e18) / price;
+        if (price == 0) price = 1;
+        tokens[msg.sender] += (msg.value * 1000e18) / price;
     }
 }
 contract ReadOnlyAttacker {
     ReadOnlyPool pool;
     InnocentProtocol victim;
-    constructor(address _p, address _v) {
+    constructor(address payable _p, address _v) {
         pool = ReadOnlyPool(_p);
         victim = InnocentProtocol(_v);
     }

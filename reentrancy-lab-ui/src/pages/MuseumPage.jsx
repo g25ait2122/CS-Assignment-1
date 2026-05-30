@@ -8,10 +8,11 @@ const ADDR = {
     c_attacker: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
     x_vault: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     x_attacker: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-    ro_pool: "0x0165878A594ca255338adfa4d48449f69242Eb8F",     // Fixed!
+    ro_pool: "0x0165878A594ca255338adfa4d48449f69242Eb8F",
     ro_attacker: "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
-    f_pool: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-    f_attacker: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
+    ro_innocent: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    f_pool: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    f_attacker: "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
 };
 
 export default function MuseumPage() {
@@ -147,6 +148,7 @@ export default function MuseumPage() {
           <AddressRow label="Cross-Function Attacker" address={ADDR.x_attacker} color="#8b5cf6" />
           <AddressRow label="Read-Only Pool" address={ADDR.ro_pool} color="#06b6d4" />
           <AddressRow label="Read-Only Attacker" address={ADDR.ro_attacker} color="#06b6d4" />
+          <AddressRow label="Read-Only Innocent" address={ADDR.ro_innocent} color="#06b6d4" />
           <AddressRow label="Flashloan Pool" address={ADDR.f_pool} color="#f97316" />
           <AddressRow label="Flashloan Attacker" address={ADDR.f_attacker} color="#f97316" />
         </div>
@@ -169,7 +171,7 @@ export default function MuseumPage() {
         }}>
           {activeExhibit === 1 && <LiveExecutionPanel provider={provider} account={account} title="Classic Reentrancy" attackerAddr={ADDR.c_attacker} vaultAddr={ADDR.c_vault} exhibitId={1} successMsg="EVM Trace Extracted. Vault Drained completely." refreshKey={refreshKey} />}
           {activeExhibit === 2 && <LiveExecutionPanel provider={provider} account={account} title="Cross-Function" attackerAddr={ADDR.x_attacker} vaultAddr={ADDR.x_vault} exhibitId={2} successMsg="EVM Trace Extracted. Reward Pool Drained." refreshKey={refreshKey} />}
-          {activeExhibit === 3 && <LiveExecutionPanel provider={provider} account={account} title="Read-Only Oracle" attackerAddr={ADDR.ro_attacker} vaultAddr={ADDR.ro_pool} attackVal="11" exhibitId={3} successMsg="Oracle Manipulated! Tokens bought at massive discount." refreshKey={refreshKey} />}
+          {activeExhibit === 3 && <LiveExecutionPanel provider={provider} account={account} title="Read-Only Oracle" attackerAddr={ADDR.ro_attacker} vaultAddr={ADDR.ro_pool} attackVal="10" isReadOnly={true} exhibitId={3} successMsg="Oracle Manipulated! Tokens bought at massive discount." refreshKey={refreshKey} />}
           {activeExhibit === 4 && <LiveExecutionPanel provider={provider} account={account} title="Flashloan Exploit" attackerAddr={ADDR.f_attacker} vaultAddr={ADDR.f_pool} isFlashloan={true} exhibitId={4} successMsg="Flashloan Repaid. Victim Vault Drained via Amplification." refreshKey={refreshKey} />}
         </div>
       </div>
@@ -214,10 +216,12 @@ function ExhibitBtn({ id, active, set, title, icon }) {
 }
 
 // --- THE REAL-TIME EXECUTION ENGINE ---
-function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr, attackVal = "1", isFlashloan = false, successMsg, exhibitId, refreshKey }) {
+function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr, attackVal = "1", isFlashloan = false, isReadOnly = false, successMsg, exhibitId, refreshKey }) {
   const [vBal, setVBal] = useState('...');
   const [aBal, setABal] = useState('...');
   const [victimBal, setVictimBal] = useState('...'); // For flashloan: the actual drained vault
+  const [oraclePrice, setOraclePrice] = useState('...'); // For read-only: oracle price
+  const [tokenBalance, setTokenBalance] = useState('0'); // For read-only: tokens bought
   const [status, setStatus] = useState('Ready.');
   const [traceHtml, setTraceHtml] = useState([]);
   const [attackExecuted, setAttackExecuted] = useState(false); // Track if attack was executed
@@ -234,6 +238,33 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
     if (isFlashloan) {
       const classicVault = await provider.getBalance(ADDR.c_vault);
       setVictimBal(ethers.utils.formatEther(classicVault));
+    }
+    
+    // For read-only, fetch oracle price and tokens bought
+    if (isReadOnly) {
+      try {
+        const poolContract = new ethers.Contract(
+          vaultAddr,
+          ['function getPrice() external view returns (uint)'],
+          provider
+        );
+        const price = await poolContract.getPrice();
+        const formattedPrice = ethers.utils.formatEther(price);
+        setOraclePrice(parseFloat(formattedPrice).toFixed(2));
+        
+        // Fetch tokens bought by attacker
+        const innocentContract = new ethers.Contract(
+          ADDR.ro_innocent,
+          ['function tokens(address) external view returns (uint)'],
+          provider
+        );
+        const tokens = await innocentContract.tokens(attackerAddr);
+        const formattedTokens = ethers.utils.formatEther(tokens);
+        setTokenBalance(parseFloat(formattedTokens).toFixed(2));
+      } catch {
+        setOraclePrice('N/A');
+        setTokenBalance('0');
+      }
     }
   };
 
@@ -342,7 +373,7 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isFlashloan ? '1fr 1fr 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isReadOnly ? 'repeat(4, 1fr)' : (isFlashloan ? '1fr 1fr 1fr' : '1fr 1fr'), gap: '1rem', marginBottom: '1.5rem' }}>
         {isFlashloan && (
           <div style={{ 
             background: attackExecuted ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)' : '#f3f4f6', 
@@ -371,12 +402,30 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
             {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isFlashloan ? '#16a34a' : '#ef4444', animation: 'pulse 1s ease-in-out infinite' }}></span>}
             {isFlashloan ? (
               attackExecuted ? 'Flashloan Pool • REPAID' : 'Flashloan Pool'
+            ) : isReadOnly ? (
+              'Liquidity Pool'
             ) : (
               attackExecuted ? 'Victim Vault • DRAINED' : 'Victim Vault'
             )}
           </p>
           <p style={{ fontSize: '1.5rem', fontWeight: 700, color: !isFlashloan && vBal === '0.0' ? '#dc2626' : '#22c55e' }}>{vBal} ETH</p>
         </div>
+        {isReadOnly && (
+          <div style={{ 
+            background: attackExecuted ? 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : '#f3f4f6', 
+            padding: '1rem', 
+            borderRadius: '0.75rem', 
+            border: attackExecuted ? '2px solid #3b82f6' : '1px solid #e5e7eb', 
+            boxShadow: attackExecuted ? '0 4px 12px rgba(59,130,246,0.3)' : '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.5s ease'
+          }}>
+            <p style={{ fontSize: '0.875rem', color: attackExecuted ? '#1e40af' : '#6b7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', animation: 'pulse 1s ease-in-out infinite' }}></span>}
+              Oracle Price {attackExecuted && '• MANIPULATED'}
+            </p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, color: attackExecuted ? '#1e40af' : '#111827' }}>{oraclePrice}</p>
+          </div>
+        )}
         <div style={{ 
           background: attackExecuted ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' : '#f3f4f6', 
           padding: '1rem', 
@@ -391,6 +440,22 @@ function LiveExecutionPanel({ provider, account, title, attackerAddr, vaultAddr,
           </p>
           <p style={{ fontSize: '1.5rem', fontWeight: 700, color: attackExecuted ? '#b45309' : '#111827' }}>{aBal} ETH</p>
         </div>
+        {isReadOnly && (
+          <div style={{ 
+            background: attackExecuted ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' : '#f3f4f6', 
+            padding: '1rem', 
+            borderRadius: '0.75rem', 
+            border: attackExecuted ? '2px solid #16a34a' : '1px solid #e5e7eb', 
+            boxShadow: attackExecuted ? '0 4px 12px rgba(22,163,74,0.3)' : '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.5s ease'
+          }}>
+            <p style={{ fontSize: '0.875rem', color: attackExecuted ? '#166534' : '#6b7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {attackExecuted && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a', animation: 'pulse 1s ease-in-out infinite' }}></span>}
+              Tokens Bought {attackExecuted && '• EXPLOIT'}
+            </p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, color: attackExecuted ? '#15803d' : '#111827' }}>{tokenBalance}</p>
+          </div>
+        )}
       </div>
 
       <button 
@@ -481,13 +546,15 @@ function UnderTheHood({ exhibitId }) {
     3: {
       title: "How Read-Only Reentrancy Works",
       steps: [
-        "Attacker deposits 10 ETH into the Liquidity Pool and immediately withdraws it.",
-        "During the withdrawal, the Pool sends the ETH back, triggering receive().",
-        "At this exact moment, the Pool's ETH balance is depleted, but totalDeposits hasn't updated yet.",
-        "The getPrice() Oracle formula (ETH Balance / totalDeposits) mathematically crashes to near zero.",
-        "Attacker uses this crashed price to buy massive amounts of tokens from a third-party InnocentProtocol."
+        "User sends 10 ETH via MetaMask → Attacker contract receives it.",
+        "Attacker deposits 10 ETH into the Pool. Pool balance: 20 ETH → 30 ETH, Total deposits: 10 → 20 ETH.",
+        "Attacker calls withdraw(). Pool sends 10 ETH back, triggering receive() fallback.",
+        "During the transfer (before state update): Pool balance = 20 ETH, but totalDeposits still = 20 ETH.",
+        "Oracle price formula crashes: (20 ETH / 20 ETH) = 1.00 (normally 2.00).",
+        "Attacker uses 1 ETH to buy tokens at crashed price: gets 1000 tokens (normally would get 500).",
+        "After reentrancy: State updates, price restores to 2.00. Attacker keeps 9 ETH + 500 exploited tokens."
       ],
-      code: `function getPrice() external view returns (uint) {\n  // Balance can be manipulated during reentrancy\n  return (address(this).balance * 1e18) / totalDeposits;\n}` 
+      code: `function getPrice() external view returns (uint) {\n  // Balance manipulated during reentrancy\n  return (address(this).balance * 1e18) / totalDeposits;\n}\n\nreceive() external payable {\n  // Buy tokens during manipulation\n  victim.buyTokens{value: 1 ether}();\n}` 
     },
     4: {
       title: "How Flashloan Amplification Works",
