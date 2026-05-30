@@ -530,7 +530,28 @@ function UnderTheHood({ exhibitId }) {
         "Because the Vault hasn't updated the balance yet, it sends another 1 ETH.",
         "This loops until the Vault's ETH is completely drained."
       ],
-      code: `function withdraw() external {\n  uint bal = balances[msg.sender];\n  // External call before state update\n  (bool s, ) = msg.sender.call{value: bal}("");\n  \n  // State updated after external call\n  balances[msg.sender] = 0;\n}` 
+      code: `function withdraw() external {\n  uint bal = balances[msg.sender];\n  // External call before state update\n  (bool s, ) = msg.sender.call{value: bal}("");\n  \n  // State updated after external call\n  balances[msg.sender] = 0;\n}`,
+      incidents: [
+        {
+          name: "The DAO",
+          date: "June 17, 2016",
+          loss: "3.6M ETH (~$60M)",
+          description: "The most famous smart contract exploit. Led to Ethereum hard fork (ETH/ETC split). Attacker recursively drained funds before balance updates.",
+          links: [
+            { label: "Ethereum Foundation Report", url: "https://blog.ethereum.org/2016/06/17/critical-update-re-dao-vulnerability" },
+            { label: "Wikipedia Overview", url: "https://en.wikipedia.org/wiki/The_DAO_(organization)" }
+          ]
+        },
+        {
+          name: "Fei Protocol / Rari Capital",
+          date: "April 30, 2022",
+          loss: "~$80M",
+          description: "One of the largest modern reentrancy attacks. Exploited lending pool vulnerabilities in Rari Fuse.",
+          links: [
+            { label: "Incident Coverage", url: "https://www.linkedin.com/pulse/rise-fall-rari-capital-defi-tragedy-cybersanctus-zfytf/" },
+          ]
+        }
+      ]
     },
     2: {
       title: "How Cross-Function Reentrancy Works",
@@ -541,7 +562,37 @@ function UnderTheHood({ exhibitId }) {
         "Instead of calling claimReward() again, the Attacker calls a DIFFERENT function (like transfer() or withdraw()).",
         "The rewardsClaimed flag hasn't been set to true yet, allowing infinite claims."
       ],
-      code: `function claimReward() external {\n  require(!rewardsClaimed[msg.sender], "Claimed");\n  // Reward sent before flag update\n  (bool s, ) = msg.sender.call{value: 1 ether}("");\n  \n  // Flag updated after external call\n  rewardsClaimed[msg.sender] = true;\n}` 
+      code: `function claimReward() external {\n  require(!rewardsClaimed[msg.sender], "Claimed");\n  // Reward sent before flag update\n  (bool s, ) = msg.sender.call{value: 1 ether}("");\n  \n  // Flag updated after external call\n  rewardsClaimed[msg.sender] = true;\n}`,
+      incidents: [
+        {
+          name: "Cream Finance",
+          date: "Multiple 2021-2022",
+          loss: "~$130M+ total",
+          description: "Series of exploits targeting complex interactions between borrowing, collateral, and accounting functions across protocol.",
+          links: [
+            { label: "Rekt News Analysis", url: "https://rekt.news/cream-rekt/" }
+          ]
+        },
+        {
+          name: "Lendf.Me (dForce)",
+          date: "April 19, 2020",
+          loss: "~$25M",
+          description: "ERC777 token callback allowed cross-function reentrancy between deposit and withdraw. Attacker credited funds twice through function interaction.",
+          links: [
+            { label: "Incident Coverage", url: "https://siliconangle.com/2020/04/19/25m-cryptocurrency-stolen-hack-lendf-uniswap/" },
+            { label: "OpenZeppelin Analysis", url: "https://blog.openzeppelin.com/exploiting-uniswap-from-reentrancy-to-actual-profit" }
+          ]
+        },
+        {
+          name: "Akropolis",
+          date: "November 12, 2020",
+          loss: "2M DAI (~$2M)",
+          description: "Missing token validation in deposit function. Malicious ERC20 reentered deposit(), crediting pool shares twice for same collateral.",
+          links: [
+            { label: "PeckShield Analysis", url: "https://peckshield.medium.com/akropolis-incident-root-cause-analysis-c11ee59e05d4" }
+          ]
+        }
+      ]
     },
     3: {
       title: "How Read-Only Reentrancy Works",
@@ -554,7 +605,37 @@ function UnderTheHood({ exhibitId }) {
         "Attacker uses 1 ETH to buy tokens at crashed price: gets 1000 tokens (normally would get 500).",
         "After reentrancy: State updates, price restores to 2.00. Attacker keeps 9 ETH + 500 exploited tokens."
       ],
-      code: `function getPrice() external view returns (uint) {\n  // Balance manipulated during reentrancy\n  return (address(this).balance * 1e18) / totalDeposits;\n}\n\nreceive() external payable {\n  // Buy tokens during manipulation\n  victim.buyTokens{value: 1 ether}();\n}` 
+      code: `function getPrice() external view returns (uint) {\n  // Balance manipulated during reentrancy\n  return (address(this).balance * 1e18) / totalDeposits;\n}\n\nreceive() external payable {\n  // Buy tokens during manipulation\n  victim.buyTokens{value: 1 ether}();\n}`,
+      incidents: [
+        {
+          name: "Curve LP Oracle Vulnerability",
+          date: "April 2022",
+          loss: "No direct loss (prevented)",
+          description: "Critical flaw in Curve stable-swap pools. get_virtual_price() manipulated during liquidity removal. Affected MakerDAO, Enzyme, Abracadabra oracles.",
+          links: [
+            { label: "ChainSecurity Report", url: "https://chainsecurity.com/curve-lp-oracle-manipulation-post-mortem/" },
+            { label: "Balancer Advisory", url: "https://forum.balancer.fi/t/reentrancy-vulnerability-scope-expanded/4345" }
+          ]
+        },
+        {
+          name: "Market.xyz (QuickSwap)",
+          date: "October 24, 2022",
+          loss: "138 ETH + 700 MATIC (~$220K)",
+          description: "Flashloan + read-only reentrancy on Curve LP oracle. Attacker inflated collateral value during liquidity removal to over-borrow funds.",
+          links: [
+            { label: "QuillAudits Report", url: "https://quillaudits.medium.com/decoding-220k-read-only-reentrancy-exploit-quillaudits-30871d728ad5" }
+          ]
+        },
+        {
+          name: "Beanstalk Wells",
+          date: "2023",
+          loss: "Vulnerability disclosed",
+          description: "Read-only assumptions in view functions allowed state manipulation. Demonstrates danger of view-based oracle calculations.",
+          links: [
+            { label: "Incident Analysis", url: "https://github.com/solodit/solodit_content/blob/main/reports/Cyfrin/2023-06-16-Beanstalk%20wells.md" }
+          ]
+        }
+      ]
     },
     4: {
       title: "How Flashloan Amplification Works",
@@ -565,7 +646,45 @@ function UnderTheHood({ exhibitId }) {
         "The massive capital drains the victim vault completely in just a few loops.",
         "Attacker repays the 50 ETH flashloan plus a small fee, keeping the remaining stolen ETH as pure profit."
       ],
-      code: `receive() external payable {\n  if (msg.sender == flashPool) {\n    vault.deposit{value: msg.value}();\n    vault.withdraw();\n    payable(flashPool).transfer(msg.value);\n  }\n}` 
+      code: `receive() external payable {\n  if (msg.sender == flashPool) {\n    vault.deposit{value: msg.value}();\n    vault.withdraw();\n    payable(flashPool).transfer(msg.value);\n  }\n}`,
+      incidents: [
+        {
+          name: "Euler Finance",
+          date: "March 2023",
+          loss: "~$197M",
+          description: "One of largest DeFi exploits. Donation attack combined with flashloan to manipulate collateral. Exploited lending logic flaws.",
+          links: [
+            { label: "Incident Explainer", url: "https://www.chainalysis.com/blog/euler-finance-flash-loan-attack/" }
+          ]
+        },
+        {
+          name: "PancakeBunny",
+          date: "May 2021",
+          loss: "~$45M",
+          description: "Flashloan manipulated token price oracle. Massive borrowed capital distorted pool ratios enabling profit extraction.",
+          links: [
+            { label: "Rekt News Analysis", url: "https://rekt.news/pancakebunny-rekt/" }
+          ]
+        },
+        {
+          name: "Rari Capital",
+          date: "May 8, 2021",
+          loss: "2,600 ETH (~$10M)",
+          description: "Flashloan of 59,000 ETH combined with malicious token callback. Reentered during Alpha Homora integration to drain pools.",
+          links: [
+            { label: "SolidityScan Analysis", url: "https://blog.solidityscan.com/rari-capital-re-entrancy-vulnerability-analysis-25df2bbfc803/" }
+          ]
+        },
+        {
+          name: "Cream Finance",
+          date: "August 30, 2021",
+          loss: "2,804 ETH + 462M AMP",
+          description: "ERC-777 AMP token callbacks exploited during borrow(). Flashloan amplified reentrancy to drain entire vault before state updates.",
+          links: [
+            { label: "Halborn Security Report", url: "https://halborn.com/explained-the-cream-finance-hack-august-2021/" }
+          ]
+        }
+      ]
     }
   };
 
@@ -638,6 +757,89 @@ function UnderTheHood({ exhibitId }) {
           }}>
             <pre>{data.code}</pre>
           </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1.5rem' }}>
+        <h5 style={{ 
+          fontSize: '0.875rem', 
+          fontWeight: 700, 
+          color: '#6b7280', 
+          textTransform: 'uppercase', 
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>📊</span> Historical Incidents & Impact
+        </h5>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {data.incidents.map((incident, idx) => (
+            <div key={idx} style={{ 
+              background: 'white', 
+              border: '1px solid #e5e7eb', 
+              borderRadius: '0.5rem', 
+              padding: '1rem',
+              transition: 'all 0.2s',
+              cursor: 'default'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                <div>
+                  <h6 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
+                    ⚠️ {incident.name}
+                  </h6>
+                  <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>{incident.date}</p>
+                </div>
+                <div style={{ 
+                  background: incident.loss.includes('prevented') || incident.loss.includes('disclosed') ? '#fef3c7' : '#fee2e2', 
+                  color: incident.loss.includes('prevented') || incident.loss.includes('disclosed') ? '#92400e' : '#991b1b', 
+                  padding: '0.25rem 0.75rem', 
+                  borderRadius: '0.375rem', 
+                  fontSize: '0.75rem', 
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
+                }}>
+                  {incident.loss}
+                </div>
+              </div>
+              <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.6', marginBottom: '0.75rem' }}>
+                {incident.description}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {incident.links.map((link, linkIdx) => (
+                  <a 
+                    key={linkIdx}
+                    href={link.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#2563eb', 
+                      textDecoration: 'none',
+                      padding: '0.25rem 0.625rem',
+                      background: '#eff6ff',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #dbeafe',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = '#dbeafe';
+                      e.target.style.borderColor = '#93c5fd';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = '#eff6ff';
+                      e.target.style.borderColor = '#dbeafe';
+                    }}
+                  >
+                    🔗 {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
